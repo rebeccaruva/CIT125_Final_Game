@@ -1,0 +1,10 @@
+goal: read file into program and input each char of each level file into 2D array
+use the 2d array to display the #, o, and f chars as "tiles" in console
+
+     # is wall
+     o is goal
+     f is player
+
+use wasd or arrow keys to move character
+hit walls and you restart level
+hit goal and you go to next level
