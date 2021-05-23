@@ -1,6 +1,5 @@
 ﻿// CIT125_FinalProject_ScrollingFroggerGame.cpp : load in level trial file
-// 6 lines at a time, move character with left and right arrows,
-// reach sun to enter next level
+// 5 lines at a time, move character with left and right arrows to reach sun
 // Created by Rebecca (Bex) Ruvalcaba on 05/20/2021
 
 #include <iostream> //include the input/output stream
@@ -16,6 +15,7 @@ private:
     // Private attributes
     string currentDisplay[5] = {""};
     bool status = true;
+    string originalLine = currentDisplay[0]; //without player
 
 public:
     // set current display
@@ -23,11 +23,18 @@ public:
         for (int i = 0; i < 5; i++) {
             currentDisplay[i] = display[i];
         }
+        //update original line as well
+        originalLine = currentDisplay[0];
     }
     // get current display
     string* getDisplay() {
         //return pointer to array
         return currentDisplay;
+    }
+
+    //get original line
+    string getOgLine() {
+        return originalLine;
     }
 
     // set status
@@ -41,9 +48,9 @@ public:
 };
 
 //function prototypes
-void resetVars();
 void movePlayer(string playerPos, char symbol, char wall, char goal);
 int currentPlayerPos(string player, char symbol);
+void placePlayer(int pos, char symbol, char wall, char goal);
 void moveLevel(int totalLines, string currentLevel[]);
 void updateLevelView(int totalLines, string currentLevel[], int currentLine);
 void displayLevel();
@@ -154,10 +161,6 @@ int main()
 }
 
 //**function definitions**
-void resetVars() {
-
-} //end of resetVars function
-
 void movePlayer(string playerPos, char symbol, char wall, char goal) {
     //keys for moving player left and right
     const int MOVE_LEFT = 75;
@@ -222,6 +225,30 @@ int currentPlayerPos(string player, char symbol) {
     } //end for
     return 0;
 } //end of currentPlayerPos function
+
+void placePlayer(int pos, char symbol, char wall, char goal) {
+    //place player on the bottom line of the display in level
+    string* display = myLvl.getDisplay();
+    string playerLine = display[0]; //bottom line of display with player
+    string ogLine = myLvl.getOgLine();
+
+    //check if player is hitting wall
+    if (ogLine[pos] == wall) {
+        //hitting wall, end game negatively
+        myLvl.setStatus(false); //end all threads
+        return; //break out of function
+    } //end if
+
+    //check if player is hitting goal
+    if (ogLine[pos] == goal) {
+        //hit goal, end game positively
+        myLvl.setStatus(false);
+        return; //break out of function
+    } //end if
+
+    //place player on screen if blank space! (aka not wall or goal)
+    
+}
 
 void moveLevel(int totalLines, string currentLevel[]) {
     int levelSpeed = 1; //speed of level
