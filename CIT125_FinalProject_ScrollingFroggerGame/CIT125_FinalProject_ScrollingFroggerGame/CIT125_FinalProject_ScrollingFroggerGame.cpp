@@ -11,12 +11,24 @@
 #include <thread> //unclude thread so code can be executed concurrently in diff threads
 using namespace std; //using the standard namespace
 
+/*
+Level class :
+   - used to encapsulate level-related attributes including:
+   currentDisplay (lines currently displayed on console, status (for threads),
+   originalLine (bottom line of currentDisplay without player), and gameEnded (status
+   of the level/game)
+   - used to get/set these attributes from main() function and other program-defined functions
+   I have created
+   - note that a string* pointer to the currentDisplay array is returned with getDisplay
+   since you cannot return an entire array in c++
+*/
 class Level {
 private:
     // Private attributes
     string currentDisplay[5] = {""}; //current 5 line display for the game's current level
     bool status = true; //true for all threads running, false for all threads stopped
     string originalLine = currentDisplay[0]; //bottom line without player
+    bool gameEnded = false; //check the status of game, ended or not
 
 public:
     // set current display
@@ -33,6 +45,12 @@ public:
         return currentDisplay;
     }
 
+    // set new line with player
+    void setNewLine(string line) {
+        //set bottom line of currentDisplay (index 0) to line
+        //so player will be displayed
+        currentDisplay[0] = line;
+    }
     // get original line
     string getOgLine() {
         return originalLine;
@@ -46,19 +64,35 @@ public:
     bool getStatus() {
         return status;
     }
+
+    // set game status
+    void setGameEnded(bool gameStat) {
+        gameEnded = gameStat;
+    }
+    // get game status
+    bool getGameEnded() {
+        return gameEnded;
+    }
 };
 
 //function prototypes
-void movePlayer(string playerPos, char symbol, char wall, char goal);
-int currentPlayerPos(string player, char symbol);
-void displayPlayer(int pos, char symbol, char wall, char goal);
+void movePlayer();
+void displayPlayer(int dir);
 void scrollLevel(int totalLines, string currentLevel[]);
 void updateLevelView(int totalLines, string currentLevel[], int currentLine);
 void displayLevel();
-void menuDisplay(bool won, int level, bool gameEnded);
+void menuDisplay(int level);
 
 //global object myLvl to access get and set for level attributes
 Level myLvl;
+
+//global vars
+int playerPosition; //position of the player
+char symbol; //'f' symbol for player (flower)
+char wall; //'#' symbol for wall
+char goal; //'o' symbol for goal (sun)
+bool levelSuccess; //used to check whether level was won or not
+
 
 int main()
 {
@@ -67,10 +101,10 @@ int main()
     string title = "Hungy Flowey"; //aka hungry flower
     string description = "a flower is hungry so you must help it reach the sun";
     string goals[2] = { "move left and right to avoid walls", "reach the sun to move on to the next level" };
-    string playerPos = "         f          "; //starting player position
-    char symbol = 'f'; //player symbol is f
-    char wall = '#'; //wall is pound
-    char goal = 'o'; //goal is the sun
+    playerPosition = 9; //starting player position -> 9 in range of 0-19, inclusive
+    symbol = 'f'; //player symbol is f
+    wall = '#'; //wall is pound
+    goal = 'o'; //goal is the sun
 
     //vars for levels
     const int TOTAL_LINES = 50; //num of total lines in a level
@@ -81,11 +115,10 @@ int main()
     bool canDisplayLevel = false; //can display level bool
     int totalLevels[3] = { 1, 2, 3 }; //three levels total in game
     int level = totalLevels[0]; //start at first level
-    bool gameEnded = false; //bool to check if game is ended
-    bool levelSuccess = false; //bool to check if level successfully finished
+    levelSuccess = false; //level is not successful until reach goal
     
     //while game has not ended, continue to next level (or to level that has been reset)
-    while (!gameEnded) {
+    while (!myLvl.getGameEnded()) {
         //open or create the correct files for the correct levels (1, 2, 3)
         switch (level) {
             case 1:
@@ -181,8 +214,8 @@ int main()
 
             //vars for threads
             myLvl.setStatus(true); //setting status to true since all threads will begin running
-            thread th1(scrollLevel, TOTAL_LINES, currentLevelLines); //thread one is moveLevel function
-            thread th2(movePlayer, playerPos, symbol, wall, goal); //thread 2 is movePlayer function
+            thread th1(scrollLevel, TOTAL_LINES, currentLevelLines); //thread 1 is moveLevel function
+            thread th2(movePlayer); //thread 2 is movePlayer function
 
             //wait for first thread to finish
             th1.join();
@@ -190,7 +223,7 @@ int main()
             th2.join();
 
             //prompt user to either retry level, continue to next level, or end game
-            menuDisplay(levelSuccess, level, gameEnded);
+            menuDisplay(level);
         } //end if
     } //end while
 
@@ -202,6 +235,7 @@ int main()
 
 //**function definitions**
 
+
 /*
 movePlayer function :
    - allows the user to click left and right arrows to move
@@ -210,16 +244,13 @@ movePlayer function :
    - movePlayer calls on currentPlayerPos and displayPlayer 
    functions.
 */
-void movePlayer(string playerPos, char symbol, char wall, char goal) {
+void movePlayer() {
     //keys for moving player left and right
     const int MOVE_LEFT = 75;
     const int MOVE_RIGHT = 77;
     const int END = 27;
 
-    string s(1, symbol); //cast symbol (size 1) from char to string using string constructor
-    string w(1, wall);
-    string g(1, goal);
-    int pos = 0; //to be used as the player's current index
+    int dir = 0; //direction the player is moving
 
     int c = 0;
     int checkKeys = true;
@@ -230,25 +261,27 @@ void movePlayer(string playerPos, char symbol, char wall, char goal) {
             case MOVE_LEFT:
                 //move player left :
                 //if player position is greater than 0, player can move left
-                pos = currentPlayerPos(playerPos, symbol); //get current player position
-                if (pos > 0) {
-                    //replace current player with a space
-                    //and replace the space to the left with the player
-                    playerPos.replace(pos, 1, " ");
-                    playerPos.replace(pos - 1, 1, s); //s is symbol as a string
-                    cout << playerPos << endl;
+                //pos = currentPlayerPos(playerPos, symbol); //get current player position
+                if (playerPosition > 0) {
+                    dir = -1; //direction is to the left
+                    displayPlayer(dir);
+                }
+                else {
+                    dir = 0; //direction cannot move
+                    displayPlayer(dir);
                 }
                 break;
             case MOVE_RIGHT:
                 //move player right :
-                //if player position is less than length-1, player can move right
-                pos = currentPlayerPos(playerPos, symbol); //get current player position
-                if (pos < playerPos.length()-1) {
-                    //replace current player with a space
-                    //and replace the space to the right with the player
-                    playerPos.replace(pos, 1, " ");
-                    playerPos.replace(pos + 1, 1, s); //s is symbol as a string
-                    cout << playerPos << endl;
+                //if player position is less than line length-1 aka 19, player can move right
+                //pos = currentPlayerPos(playerPos, symbol); //get current player position
+                if (playerPosition < 19) {
+                    dir = 1; //direction is to the right
+                    displayPlayer(dir);
+                }
+                else {
+                    dir = 0; //direction cannot move
+                    displayPlayer(dir);
                 }
                 break;
             case END:
@@ -264,69 +297,120 @@ void movePlayer(string playerPos, char symbol, char wall, char goal) {
     } //end while
 } //end of movePlayer function
 
-int currentPlayerPos(string player, char symbol) {
-    //search for player symbol, when it is found return it's index
-    //if not found just return 0
-    for (int i = 0; i < player.length(); i++) {
-        if (player[i] == symbol) {
-            return i;
-        } //end if
-    } //end for
-    return 0;
-} //end of currentPlayerPos function
 
-void displayPlayer(int pos, char symbol, char wall, char goal) {
-    //display player on the bottom line of the display in level
-    string* display = myLvl.getDisplay();
-    string playerLine = display[0]; //bottom line of display with player
-    string ogLine = myLvl.getOgLine();
+/*
+displayPlayer function :
+   - displays player on the bottom line of the level
+   - checks whether the player is hitting a wall, if so the game will
+   go to the menu screen
+   - checks whether the player is hitting the goal, if so the successful
+   level will go to the menu screen with continue option (if more levels to play)
+   - if a blank space the player will be displayed as normal
+*/
+void displayPlayer(int dir) {
+    //display player on the bottom line of the current level display
+
+    string playerLine = myLvl.getOgLine();; //get bottom line of display (player to be added)
+    string ogLine = myLvl.getOgLine(); //get the bottom line of the display without player
+
+    string s(1, symbol); //cast symbol (size 1) from char to string using string constructor
 
     //check if player is hitting wall
-    if (ogLine[pos] == wall) {
+    if (ogLine[playerPosition] == wall) {
         //hitting wall, end game negatively
+        levelSuccess = false; //level was unsuccessful
         myLvl.setStatus(false); //end all threads
         return; //break out of function
     } //end if
 
     //check if player is hitting goal
-    if (ogLine[pos] == goal) {
+    if (ogLine[playerPosition] == goal) {
         //hit goal, end game positively
+        levelSuccess = true; //level was successful
         myLvl.setStatus(false);
         return; //break out of function
     } //end if
 
-    //place player on screen if blank space! (aka not wall or goal)
-    
+    //place player on screen if blank space! (not wall or goal)
+    if (dir == -1) {
+        //move left
+        //update player position
+        playerPosition -= 1; //position moved to the left
+        
+        // update the bottom line displayed to include the player
+        playerLine.replace(playerPosition, 1, s); //s is symbol as a string
+        myLvl.setNewLine(playerLine);
+    }
+    else if (dir == 1) {
+        //move right
+        //update player position
+        playerPosition += 1;
+
+        // update the bottom line displayed to include the player
+        playerLine.replace(playerPosition, 1, s); //s is symbol as a string
+        myLvl.setNewLine(playerLine);
+    }
+    else {
+        //dir is 0 and direction cannot move
+        //update the bottom line to include the player position as is
+        playerLine.replace(playerPosition, 1, s); //s is symbol as a string
+        myLvl.setNewLine(playerLine);
+    }
+
+    //redisplay the level with new bottom line (includes the player)
+    displayLevel();
 }
 
+
+/*
+scrollLevel function :
+   - uses the time type to scroll the level at the level speed
+   (each second it will move along)
+   - once the level reaches the last line it will terminate the 
+   thread and prompt the user to click an arrow key so the first
+   thread can also be terminated
+   - scrollLevel calls on updateLevelView to "scroll" through the
+   level
+*/
 void scrollLevel(int totalLines, string currentLevelLines[]) {
-    int levelSpeed = 1; //speed of level
-    time_t start;
-    start = time(0); //time starts at 0
+    int levelSpeed = 1; //speed of level (aka 1 second)
+    time_t start; //time type called start
+    start = time(0); //time starts at current time
 
     int currentLine = 0; //count of currentLine (0-50)
-    bool keepMoving = true;
+    bool keepMoving = true; //keep scrolling as long as true
 
+    //while the level should be moved, scroll at levelSpeed
+    //else end function
     while (keepMoving) {
+        //if current time minus start is equal to levelSpeed (1 second)
+        //update the level view, increment the current line, and
+        //update starting time to reset second count
         if (time(0) - start == levelSpeed) {
             //move level by a line
             updateLevelView(totalLines, currentLevelLines, currentLine);
             currentLine++; //update the currentLine count
 
             //add current levelSpeed to starting time
+            //so second count can restart
             start = start + levelSpeed;
         } //end if
 
         //check if still need to move along the level
-        //if not, end this thread
+        //if not (aka if currentLine is greater than or equal to the
+        //last index of lines in the level file), end this thread
         if (currentLine >= totalLines-1)
             myLvl.setStatus(false);
         //end if
 
-        //if status is false, terminate thread
-        if (!myLvl.getStatus())
-            keepMoving = false;
-        //end if
+        //if status is false, thread needs to be terminated
+        if (!myLvl.getStatus()) {
+            //user needs to press right arrow to continue and
+            //make sure first thread (keyboard press check) gets the memo
+            //that it should terminate as well
+            cout << endl << "Please press right arrow key to continue." << endl << endl;
+            keepMoving = false; //end while loop and function
+        } //end if
     } //end while
 } //end of moveLevel function
 
@@ -356,9 +440,11 @@ void updateLevelView(int totalLines, string currentLevelLines[], int currentLine
             updateD[i] = currentLevelLines[(totalLines - 1) - lineNum];
         } //end if
     } //end for
-    
+
     //update the current display
     myLvl.setDisplay(updateD);
+    //make sure player is placed on screen where previously was
+    displayPlayer(0);
 
     displayLevel();
 } //end of updateLevelView function
@@ -376,7 +462,7 @@ void displayLevel() {
     //end for
 } //end of displayLevel function
 
-void menuDisplay(bool won, int level, bool gameEnded) {
+void menuDisplay(int level) {
     //display the menu of options to user
     char choice = ' ';
     bool validChoice = false;
@@ -391,37 +477,41 @@ void menuDisplay(bool won, int level, bool gameEnded) {
         cout << "R to retry" << endl;
         cout << "X to end game" << endl;
         //if level was successful (won) then prompt for C to continue
-        if (won)
+        if (levelSuccess)
             cout << "C to continue" << endl;
         //end if
+        cout << endl;
         cin >> choice;
         choice = toupper(choice); //make sure choice is capitalized
 
         //check which choice was made
-        if (choice == 'C') {
+        if (choice == 'C' && levelSuccess) {
             //continue to next level, aka increment level
             //but first check if have a level to go to
             if (level >= 2) //2 is final level's index
-                gameEnded = true; //end the game since no more levels to play
+                myLvl.setGameEnded(true); //end the game since no more levels to play
             else
                 level++; //increment level to play the next level
             //end if
             validChoice == true; //a valid choice was entered
+            return; //exit function
         }
         else if (choice == 'X') {
             //end the game
-            gameEnded = true;
+            myLvl.setGameEnded(true);
             validChoice == true; //a valid choice was entered
+            return; //exit function
         }
         else if (choice == 'R') {
             //retry the level, aka do not change level
             //but make sure gameEnded is false
-            gameEnded = false;
+            myLvl.setGameEnded(false);
             validChoice == true; //a valid choice was entered
+            return; //exit function
         }
         else {
             //invalid character entered, display error to user
-            cout << endl << "Invalid choice entered, please enter another choice." << endl;
+            cout << endl << "Invalid choice entered, please enter another choice." << endl << endl;
         }
     } //end while
 }
